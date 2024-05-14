@@ -33,7 +33,8 @@ def gpt_chat(user_input: str):
 
 
 def parse_query(message_text):
-    return "".join(message_text.split()[1:])
+    text = message_text.split()[1:]
+    return "".join(t + " " for t in text)
 
 
 @bot.message_handler(func=lambda message: message.text[0] != "/")
