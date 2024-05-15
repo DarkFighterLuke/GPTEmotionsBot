@@ -186,7 +186,7 @@ def analyze_sentiment(message):
     bot.reply_to(message, create_formatted_message(message.chat.id, sentiments), parse_mode="markdown")
 
 
-@bot.message_handler(commands=["analyze"])
+@bot.message_handler(commands=["analizza"])
 def analyze_sentiment_by_command(message):
     text = parse_query(message.text)
     logger.info(f"User {message.from_user.username} sent /analyze command with text '{text}'")
