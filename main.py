@@ -1,8 +1,10 @@
+import csv
 import json
 import logging
 import os
 
 import telebot
+from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -32,6 +34,10 @@ answer_format = """
 }
 """
 
+conversation_state = {}
+conversation_last_message = {}
+conversation_last_sentiments = {}
+
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -44,7 +50,12 @@ def gpt_chat(user_input: str):
     completion = client.chat.completions.create(
         model="ft:gpt-3.5-turbo-0125:personal:emotions:9MFmXPJ9",
         messages=[
-            {"role": "system", "content": f"Sei un chatbot che riconosce le tre emozioni più probabili tra 'gioia', 'vergogna', 'colpevolezza', 'paura', 'rabbia', 'tristezza' esprime la frase che gli viene posta. Se non conosci la risposta rispondi con 'idk'. Fornisci risposte in formato json con la seguente struttura '{answer_format}', dove accuratezza è la confidence con cui hai previsto per la specifica emozione."},
+            {"role": "system", "content": f"Sei un chatbot che riconosce le tre emozioni più probabili tra 'gioia', "
+                                          f"'vergogna', 'colpevolezza', 'paura', 'rabbia', 'tristezza' esprime la "
+                                          f"frase che gli viene posta. Se non conosci la risposta rispondi con 'idk'. "
+                                          f"Fornisci risposte in formato json con la seguente struttura '"
+                                          f"{answer_format}', dove accuratezza è la confidence con cui hai previsto "
+                                          f"per la specifica emozione."},
             {"role": "user", "content": user_input}
         ]
     )
@@ -61,24 +72,118 @@ def parse_query(message_text):
     return "".join(t + " " for t in text)
 
 
-def create_formatted_message(sentiments):
-    sentiments = [s for s in sentiments if s.get('accuracy', 0) >= accuracy_threshold]
+def to_comma_separated_sentiments(sentiments_json):
+    sentiments_str = ""
+    for sentiment in sentiments_json:
+        sentiments_str += sentiment.get("sentiment") + ", "
+    return sentiments_str[:-2]
+
+
+def filter_sentiments_by_threshold(sentiments):
+    return [s for s in sentiments if s.get('accuracy', 0) >= accuracy_threshold]
+
+
+def create_formatted_message(chat_id, sentiments, supervised=True):
+    sentiments = filter_sentiments_by_threshold(sentiments)
     if len(sentiments) == 0:
-        reply = "Non sono riuscito ad individuare quali emozioni contiene questa frase..."
+        reply = "Non sono riuscito ad individuare quali emozioni contiene questa frase...\n"
+        if supervised:
+            reply += "Ti andrebbe di aiutarmi a capire quali emozioni conteneva la frase?"
+            conversation_state[chat_id] = "yes_no_answer_no_res"
     else:
         reply = "Ho riconosciuto le seguenti emozioni:\n"
         for sentiment in sentiments:
             reply += f"`{sentiment.get('sentiment')}` con un'accuratezza del `{round(sentiment.get('accuracy'), 4) * 100}%`\n"
+        if supervised:
+            reply += "Le emozioni riconosciute sono corrette?"
+            conversation_state[chat_id] = "yes_no_answer"
 
     return reply
+
+
+def add_to_supervision_file(timestamp, user_id, username, name, chat_id, text, predicted_sentiments, sentiments):
+    headers = ["datetime", "user_id", "username", "name", "chat_id", "text", "predicted_sentiments", "real_sentiments"]
+    if not os.path.isfile("supervision.csv"):
+        with open("supervision.csv", "w") as f:
+            writer = csv.writer(f, delimiter='|', lineterminator='\n')
+            writer.writerow(headers)
+    with open("supervision.csv", "a") as f:
+        writer = csv.writer(f, delimiter='|', lineterminator='\n')
+        writer.writerow([datetime.fromtimestamp(timestamp), user_id, username, name, chat_id, text,
+                         predicted_sentiments, sentiments])
+
+
+@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_no_answer_no_res")
+def handle_yes_no_answer_no_res(message):
+    if "no" in message.text.lower():
+        conversation_state[message.chat.id] = "no_answer_no_res"
+        reply = "Come non detto allora! Inviami pure la prossima frase"
+    elif "sì" in message.text.lower() or "si" in message.text.lower():
+        conversation_state[message.chat.id] = "yes_answer_no_res"
+        reply = "Indicami le emozioni che conteneva la frase separate da una virgola"
+    else:
+        conversation_state[message.chat.id] = "no_answer_no_res"
+        reply = "Lo prendo come un no. Grazie lo stesso :)"
+
+    bot.reply_to(message, reply)
+
+
+@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_answer_no_res")
+def handle_yes_answer_no_res(message):
+    add_to_supervision_file(message.date, message.from_user.id, message.from_user.username,
+                            f"{message.from_user.first_name} {message.from_user.last_name}",
+                            message.chat.id, conversation_last_message[message.chat.id], "", message.text)
+    conversation_state[message.chat.id] = ""
+
+    bot.reply_to(message, "Grazie per il tuo contributo!")
+
+
+@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_no_answer")
+def handle_yes_no_answer(message):
+    if "sì" in message.text.lower() or "si" in message.text.lower():
+        add_to_supervision_file(message.date, message.from_user.id, message.from_user.username,
+                                f"{message.from_user.first_name} {message.from_user.last_name}",
+                                message.chat.id, conversation_last_message[message.chat.id],
+                                conversation_last_sentiments.get(message.chat.id),
+                                to_comma_separated_sentiments(
+                                    filter_sentiments_by_threshold(conversation_last_sentiments.get(message.chat.id))))
+        conversation_state[message.chat.id] = ""
+        bot.reply_to(message, "Grandioso! Grazie per il tuo contributo")
+    else:
+        reply = ""
+        if "no" not in message.text.lower():
+            reply += "Lo prendo come un no.\n"
+        reply += "Allora per favore indicami le emozioni che conteneva la frase separate da una virgola"
+        bot.reply_to(message, reply)
+        conversation_state[message.chat.id] = "no_answer"
+
+
+@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "no_answer")
+def handle_no_answer(message):
+    add_to_supervision_file(message.date, message.from_user.id, message.from_user.username,
+                            f"{message.from_user.first_name} {message.from_user.last_name}",
+                            message.chat.id, conversation_last_message[message.chat.id],
+                            conversation_last_sentiments[message.chat.id], message.text)
+    conversation_state[message.chat.id] = ""
+
+    bot.reply_to(message, "Grazie per il tuo contributo!")
+
+
+@bot.message_handler(
+    func=lambda message: message.text.startswith("/annulla") and conversation_state[message.chat.id] != "")
+def handle_cancel(message):
+    conversation_state[message.chat.id] = ""
+    bot.reply_to(message, "Come non detto allora. Inviami pure la prossima frase")
 
 
 @bot.message_handler(func=lambda message: message.text[0] != "/")
 def analyze_sentiment(message):
     logger.info(f"User {message.from_user.username} sent text: {message.text}")
     sentiments = parse_answer_sentiments(gpt_chat(message.text))
+    conversation_last_message[message.chat.id] = message.text
+    conversation_last_sentiments[message.chat.id] = sentiments
 
-    bot.reply_to(message, create_formatted_message(sentiments), parse_mode="markdown")
+    bot.reply_to(message, create_formatted_message(message.chat.id, sentiments), parse_mode="markdown")
 
 
 @bot.message_handler(commands=["analyze"])
@@ -87,7 +192,8 @@ def analyze_sentiment_by_command(message):
     logger.info(f"User {message.from_user.username} sent /analyze command with text '{text}'")
     sentiments = parse_answer_sentiments(gpt_chat(text))
 
-    bot.reply_to(message, create_formatted_message(sentiments), parse_mode="markdown")
+    bot.reply_to(message, create_formatted_message(message.chat.id, sentiments, supervised=False),
+                 parse_mode="markdown")
 
 
 bot.infinity_polling()
