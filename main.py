@@ -115,8 +115,11 @@ def add_to_supervision_file(timestamp, user_id, username, name, chat_id, text, p
                          predicted_sentiments, sentiments])
 
 
-@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_no_answer_no_res" and not message.text.startswith("/"))
+@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id,
+                                                                 "") == "yes_no_answer_no_res" and not message.text.startswith(
+    "/"))
 def handle_yes_no_answer_no_res(message):
+    logger.info(f"User {message.from_user.username} sent {message.text}")
     if "no" in message.text.lower():
         conversation_state[message.chat.id] = "no_answer_no_res"
         reply = "Come non detto allora! Inviami pure la prossima frase"
@@ -127,11 +130,15 @@ def handle_yes_no_answer_no_res(message):
         conversation_state[message.chat.id] = "no_answer_no_res"
         reply = "Lo prendo come un no. Grazie lo stesso :)"
 
+    logger.info(f"Answer: {reply}")
     bot.reply_to(message, reply)
 
 
-@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_answer_no_res" and not message.text.startswith("/"))
+@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id,
+                                                                 "") == "yes_answer_no_res" and not message.text.startswith(
+    "/"))
 def handle_yes_answer_no_res(message):
+    logger.info(f"User {message.from_user.username} sent {message.text}")
     add_to_supervision_file(message.date, message.from_user.id, message.from_user.username,
                             f"{message.from_user.first_name} {message.from_user.last_name}",
                             message.chat.id, conversation_last_message[message.chat.id], "", message.text)
@@ -140,8 +147,11 @@ def handle_yes_answer_no_res(message):
     bot.reply_to(message, "Grazie per il tuo contributo!")
 
 
-@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_no_answer" and not message.text.startswith("/"))
+@bot.message_handler(
+    func=lambda message: conversation_state.get(message.chat.id, "") == "yes_no_answer" and not message.text.startswith(
+        "/"))
 def handle_yes_no_answer(message):
+    logger.info(f"User {message.from_user.username} sent {message.text}")
     if "sì" in message.text.lower() or "si" in message.text.lower():
         add_to_supervision_file(message.date, message.from_user.id, message.from_user.username,
                                 f"{message.from_user.first_name} {message.from_user.last_name}",
@@ -160,8 +170,11 @@ def handle_yes_no_answer(message):
         conversation_state[message.chat.id] = "no_answer"
 
 
-@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "no_answer" and not message.text.startswith("/"))
+@bot.message_handler(
+    func=lambda message: conversation_state.get(message.chat.id, "") == "no_answer" and not message.text.startswith(
+        "/"))
 def handle_no_answer(message):
+    logger.info(f"User {message.from_user.username} sent {message.text}")
     add_to_supervision_file(message.date, message.from_user.id, message.from_user.username,
                             f"{message.from_user.first_name} {message.from_user.last_name}",
                             message.chat.id, conversation_last_message[message.chat.id],
@@ -174,6 +187,7 @@ def handle_no_answer(message):
 @bot.message_handler(
     func=lambda message: message.text.startswith("/annulla") and conversation_state[message.chat.id] != "")
 def handle_cancel(message):
+    logger.info(f"User {message.from_user.username} sent /annulla command")
     conversation_state[message.chat.id] = ""
     bot.reply_to(message, "Come non detto allora. Inviami pure la prossima frase")
 
@@ -184,8 +198,10 @@ def analyze_sentiment(message):
     sentiments = parse_answer_sentiments(gpt_chat(message.text))
     conversation_last_message[message.chat.id] = message.text
     conversation_last_sentiments[message.chat.id] = sentiments
+    reply = create_formatted_message(message.chat.id, sentiments)
+    logger.info(f"Answer: {reply}")
 
-    bot.reply_to(message, create_formatted_message(message.chat.id, sentiments), parse_mode="markdown")
+    bot.reply_to(message, reply, parse_mode="markdown")
 
 
 @bot.message_handler(commands=["analizza"])
@@ -193,13 +209,15 @@ def analyze_sentiment_by_command(message):
     text = parse_query(message.text)
     logger.info(f"User {message.from_user.username} sent /analizza command with text '{text}'")
     sentiments = parse_answer_sentiments(gpt_chat(text))
+    reply = create_formatted_message(message.chat.id, sentiments, supervised=False)
+    logger.info(f"Answer: {reply}")
 
-    bot.reply_to(message, create_formatted_message(message.chat.id, sentiments, supervised=False),
-                 parse_mode="markdown")
+    bot.reply_to(message, reply, parse_mode="markdown")
 
 
 @bot.message_handler(commands=["info"])
 def get_info(message):
+    logger.info(f"User {message.from_user.username} sent /info command")
     bot.send_message(message.chat.id, "Ciao, io sono GPTEmotionsBot!\n"
                                       "Sono programmato per individuare le emozioni nelle frasi che mi vengono poste.\n"
                                       "Scrivimi pure una frase per farmela analizzare e al termine dell'analisi ti "
