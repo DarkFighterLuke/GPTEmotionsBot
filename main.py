@@ -115,20 +115,18 @@ def add_to_supervision_file(timestamp, user_id, username, name, chat_id, text, p
                          predicted_sentiments, sentiments])
 
 
-@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id,
-                                                                 "") == "yes_no_answer_no_res" and not message.text.startswith(
-    "/"))
+@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_no_answer_no_res" and not message.text.startswith("/"))
 def handle_yes_no_answer_no_res(message):
     logger.info(f"User {message.from_user.username} sent {message.text}")
     if "no" in message.text.lower():
         conversation_state[message.chat.id] = "no_answer_no_res"
-        reply = "Come non detto allora! Inviami pure la prossima frase"
+        reply = "Come non detto allora.\nInviami pure la prossima frase"
     elif "sì" in message.text.lower() or "si" in message.text.lower():
         conversation_state[message.chat.id] = "yes_answer_no_res"
         reply = "Indicami le emozioni che conteneva la frase separate da una virgola"
     else:
         conversation_state[message.chat.id] = "no_answer_no_res"
-        reply = "Lo prendo come un no. Grazie lo stesso :)"
+        reply = "Lo prendo come un no. Grazie lo stesso :)\nInviami pure la prossima frase"
 
     logger.info(f"Answer: {reply}")
     bot.reply_to(message, reply)
@@ -144,7 +142,7 @@ def handle_yes_answer_no_res(message):
                             message.chat.id, conversation_last_message[message.chat.id], "", message.text)
     conversation_state[message.chat.id] = ""
 
-    bot.reply_to(message, "Grazie per il tuo contributo!")
+    bot.reply_to(message, "Grazie per il tuo contributo!\nInviami pure la prossima frase")
 
 
 @bot.message_handler(
@@ -160,7 +158,7 @@ def handle_yes_no_answer(message):
                                 to_comma_separated_sentiments(
                                     filter_sentiments_by_threshold(conversation_last_sentiments.get(message.chat.id))))
         conversation_state[message.chat.id] = ""
-        bot.reply_to(message, "Grandioso! Grazie per il tuo contributo")
+        bot.reply_to(message, "Grandioso! Grazie per il tuo contributo\nInviami pure la prossima frase")
     else:
         reply = ""
         if "no" not in message.text.lower():
@@ -181,7 +179,7 @@ def handle_no_answer(message):
                             conversation_last_sentiments[message.chat.id], message.text)
     conversation_state[message.chat.id] = ""
 
-    bot.reply_to(message, "Grazie per il tuo contributo!")
+    bot.reply_to(message, "Grazie per il tuo contributo!\nInviami pure la prossima frase")
 
 
 @bot.message_handler(
@@ -189,7 +187,7 @@ def handle_no_answer(message):
 def handle_cancel(message):
     logger.info(f"User {message.from_user.username} sent /annulla command")
     conversation_state[message.chat.id] = ""
-    bot.reply_to(message, "Come non detto allora. Inviami pure la prossima frase")
+    bot.reply_to(message, "Come non detto allora.\nInviami pure la prossima frase")
 
 
 @bot.message_handler(func=lambda message: message.text[0] != "/")
