@@ -113,6 +113,13 @@ def add_to_supervision_file(timestamp, user_id, username, name, chat_id, text, p
                          predicted_sentiments, sentiments])
 
 
+@bot.message_handler(
+    func=lambda message: message.text.startswith("/annulla") and conversation_state[message.chat.id] != "")
+def handle_cancel(message):
+    conversation_state[message.chat.id] = ""
+    bot.reply_to(message, "Come non detto allora. Inviami pure la prossima frase")
+
+
 @bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_no_answer_no_res")
 def handle_yes_no_answer_no_res(message):
     if "no" in message.text.lower():
@@ -167,13 +174,6 @@ def handle_no_answer(message):
     conversation_state[message.chat.id] = ""
 
     bot.reply_to(message, "Grazie per il tuo contributo!")
-
-
-@bot.message_handler(
-    func=lambda message: message.text.startswith("/annulla") and conversation_state[message.chat.id] != "")
-def handle_cancel(message):
-    conversation_state[message.chat.id] = ""
-    bot.reply_to(message, "Come non detto allora. Inviami pure la prossima frase")
 
 
 @bot.message_handler(func=lambda message: message.text[0] != "/")
