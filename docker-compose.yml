@@ -6,4 +6,4 @@ services:
       tags:
         - "gptemotionsbot:latest"
     volumes:
-      - ./:/
+      - ./output:/output
