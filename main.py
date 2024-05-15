@@ -12,6 +12,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_TOKEN"))
 logger = logging.getLogger("[GPTEmotionsBot]")
 logging.basicConfig(level=logging.INFO)
 
+accuracy_threshold = 0.3
 answer_format = """
 {
    "sentiments": [
@@ -61,9 +62,13 @@ def parse_query(message_text):
 
 
 def create_formatted_message(sentiments):
-    reply = "Ho riconosciuto le seguenti emozioni:\n"
-    for sentiment in sentiments:
-        reply += f"`{sentiment.get('sentiment')}` con un'accuratezza del `{round(sentiment.get('accuracy'), 4) * 100}%`\n"
+    sentiments = [s for s in sentiments if s.get('accuracy', 0) >= accuracy_threshold]
+    if len(sentiments) == 0:
+        reply = "Non sono riuscito ad individuare quali emozioni contiene questa frase..."
+    else:
+        reply = "Ho riconosciuto le seguenti emozioni:\n"
+        for sentiment in sentiments:
+            reply += f"`{sentiment.get('sentiment')}` con un'accuratezza del `{round(sentiment.get('accuracy'), 4) * 100}%`\n"
 
     return reply
 
