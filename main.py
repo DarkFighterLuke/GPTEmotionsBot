@@ -14,6 +14,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_TOKEN"))
 logger = logging.getLogger("[GPTEmotionsBot]")
 logging.basicConfig(level=logging.INFO)
 
+supervision_file_path = "output/supervision.csv"
 accuracy_threshold = 0.5
 answer_format = """
 {
@@ -103,11 +104,12 @@ def create_formatted_message(chat_id, sentiments, supervised=True):
 
 def add_to_supervision_file(timestamp, user_id, username, name, chat_id, text, predicted_sentiments, sentiments):
     headers = ["datetime", "user_id", "username", "name", "chat_id", "text", "predicted_sentiments", "real_sentiments"]
-    if not os.path.isfile("supervision.csv"):
-        with open("supervision.csv", "w") as f:
+    if not os.path.isfile(supervision_file_path):
+        os.makedirs(os.path.dirname(supervision_file_path), exist_ok=True)
+        with open(supervision_file_path, "w") as f:
             writer = csv.writer(f, delimiter='|', lineterminator='\n')
             writer.writerow(headers)
-    with open("supervision.csv", "a") as f:
+    with open(supervision_file_path, "a") as f:
         writer = csv.writer(f, delimiter='|', lineterminator='\n')
         writer.writerow([datetime.fromtimestamp(timestamp), user_id, username, name, chat_id, text,
                          predicted_sentiments, sentiments])
