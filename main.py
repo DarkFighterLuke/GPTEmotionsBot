@@ -113,7 +113,7 @@ def add_to_supervision_file(timestamp, user_id, username, name, chat_id, text, p
                          predicted_sentiments, sentiments])
 
 
-@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_no_answer_no_res")
+@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_no_answer_no_res" and not message.text.startswith("/"))
 def handle_yes_no_answer_no_res(message):
     if "no" in message.text.lower():
         conversation_state[message.chat.id] = "no_answer_no_res"
@@ -128,7 +128,7 @@ def handle_yes_no_answer_no_res(message):
     bot.reply_to(message, reply)
 
 
-@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_answer_no_res")
+@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_answer_no_res" and not message.text.startswith("/"))
 def handle_yes_answer_no_res(message):
     add_to_supervision_file(message.date, message.from_user.id, message.from_user.username,
                             f"{message.from_user.first_name} {message.from_user.last_name}",
@@ -138,7 +138,7 @@ def handle_yes_answer_no_res(message):
     bot.reply_to(message, "Grazie per il tuo contributo!")
 
 
-@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_no_answer")
+@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_no_answer" and not message.text.startswith("/"))
 def handle_yes_no_answer(message):
     if "sì" in message.text.lower() or "si" in message.text.lower():
         add_to_supervision_file(message.date, message.from_user.id, message.from_user.username,
@@ -158,7 +158,7 @@ def handle_yes_no_answer(message):
         conversation_state[message.chat.id] = "no_answer"
 
 
-@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "no_answer")
+@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "no_answer" and not message.text.startswith("/"))
 def handle_no_answer(message):
     add_to_supervision_file(message.date, message.from_user.id, message.from_user.username,
                             f"{message.from_user.first_name} {message.from_user.last_name}",
