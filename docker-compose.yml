@@ -1,0 +1,9 @@
+services:
+  gptemotionsbot:
+    container_name: GPTEmotionsBot
+    build:
+      context: .
+      tags:
+        - "gptemotionsbot:latest"
+    volumes:
+      - ./:/
