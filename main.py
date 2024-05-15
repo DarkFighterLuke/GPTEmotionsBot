@@ -189,11 +189,22 @@ def analyze_sentiment(message):
 @bot.message_handler(commands=["analizza"])
 def analyze_sentiment_by_command(message):
     text = parse_query(message.text)
-    logger.info(f"User {message.from_user.username} sent /analyze command with text '{text}'")
+    logger.info(f"User {message.from_user.username} sent /analizza command with text '{text}'")
     sentiments = parse_answer_sentiments(gpt_chat(text))
 
     bot.reply_to(message, create_formatted_message(message.chat.id, sentiments, supervised=False),
                  parse_mode="markdown")
+
+
+@bot.message_handler(commands=["info"])
+def get_info(message):
+    bot.send_message(message.chat.id, "Ciao, io sono GPTEmotionsBot!\n"
+                                      "Sono programmato per individuare le emozioni nelle frasi che mi vengono poste.\n"
+                                      "Scrivimi pure una frase per farmela analizzare e al termine dell'analisi ti "
+                                      "chiederò gentilmente di aiutarmi a capire se sono stato bravo.\n"
+                                      "Se invece non vuoi aiutarmi a migliorare, puoi utilizzare il comando /analizza "
+                                      "per pormi la frase da analizzare.\n"
+                                      "È tutto, aspetto le tue frasi! :)")
 
 
 bot.infinity_polling()
