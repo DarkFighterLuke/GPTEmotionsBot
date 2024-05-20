@@ -141,6 +141,9 @@ def handle_yes_answer_no_res(call):
         conversation_state[call.message.chat.id] = "other_sentiments"
         bot.answer_callback_query(call.id)
         bot.reply_to(call.message, "Indicami quali emozioni conteneva la frase separate da una virgola")
+    elif call.data == "annulla":
+        bot.answer_callback_query(call.id, "Annullato")
+        handle_cancel(call.message)
     else:
         add_to_supervision_file(call.message.date, call.from_user.id, call.from_user.username,
                                 f"{call.from_user.first_name} {call.from_user.last_name}",
@@ -178,6 +181,9 @@ def handle_no_answer(call):
         conversation_state[call.message.chat.id] = "other_sentiments"
         bot.answer_callback_query(call.id)
         bot.reply_to(call.message, "Indicami quali emozioni conteneva la frase separate da una virgola")
+    elif call.data == "annulla":
+        bot.answer_callback_query(call.id, "Annullato")
+        handle_cancel(call.message)
     else:
         add_to_supervision_file(call.message.date, call.from_user.id, call.from_user.username,
                                 f"{call.from_user.first_name} {call.from_user.last_name}",
@@ -219,8 +225,8 @@ def gen_answer_markup():
 
 def gen_sentiments_markup():
     markup = InlineKeyboardMarkup()
-    for sentiment in sentiments + ['altro']:
-        markup.add(InlineKeyboardButton(sentiment, callback_data=sentiment))
+    for sentiment in sentiments + ['altro', 'annulla']:
+        markup.add(InlineKeyboardButton(sentiment.capitalize(), callback_data=sentiment))
 
     return markup
 
