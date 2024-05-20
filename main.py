@@ -40,7 +40,7 @@ conversation_state = {}
 conversation_last_message = {}
 conversation_last_sentiments = {}
 
-dataset_sentiments = sentiments = ["gioia", "tristezza", "rabbia", "paura", "vergogna", "disgusto", "colpevolezza"]
+dataset_sentiments = sentiments = ["gioia 😀", "tristezza 😞", "rabbia 😡", "paura 😖", "vergogna 🫣", "disgusto 🤢", "colpevolezza 😥"]
 
 
 @bot.message_handler(commands=['start'])
@@ -218,15 +218,15 @@ def handle_cancel(message):
 def gen_answer_markup():
     markup = InlineKeyboardMarkup()
     markup.row_width = 2
-    markup.add(InlineKeyboardButton("Sì", callback_data="sì"), InlineKeyboardButton("No", callback_data="no"))
+    markup.add(InlineKeyboardButton("Sì 👍", callback_data="sì"), InlineKeyboardButton("No 👎", callback_data="no"))
 
     return markup
 
 
 def gen_sentiments_markup():
     markup = InlineKeyboardMarkup()
-    for sentiment in sentiments + ['altro', 'annulla']:
-        markup.add(InlineKeyboardButton(sentiment.capitalize(), callback_data=sentiment))
+    for sentiment in sentiments + ['altro ❔', 'annulla ❌']:
+        markup.add(InlineKeyboardButton(sentiment.capitalize(), callback_data=sentiment[:-2]))
 
     return markup
 
