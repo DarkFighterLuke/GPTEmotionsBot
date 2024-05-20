@@ -163,7 +163,7 @@ def handle_yes_no_answer(call):
                                 call.message.chat.id, conversation_last_message[call.message.chat.id],
                                 conversation_last_sentiments.get(call.message.chat.id),
                                 to_comma_separated_sentiments(
-                                    filter_sentiments_by_threshold(conversation_last_sentiments.get(call.message.chat.id))))
+                                    conversation_last_sentiments.get(call.message.chat.id)))
         conversation_state[call.message.chat.id] = ""
         bot.answer_callback_query(call.id)
         bot.reply_to(call.message, "Grandioso! Grazie per il tuo contributo\nInviami pure la prossima frase")
