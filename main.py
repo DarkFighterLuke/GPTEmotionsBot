@@ -7,6 +7,7 @@ import telebot
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 load_dotenv()
 bot = telebot.TeleBot(token=os.getenv("BOT_TOKEN"))
@@ -38,6 +39,8 @@ answer_format = """
 conversation_state = {}
 conversation_last_message = {}
 conversation_last_sentiments = {}
+
+dataset_sentiments = sentiments = ["gioia", "tristezza", "rabbia", "paura", "vergogna", "disgusto", "colpevolezza"]
 
 
 @bot.message_handler(commands=['start'])
@@ -115,63 +118,79 @@ def add_to_supervision_file(timestamp, user_id, username, name, chat_id, text, p
                          predicted_sentiments, sentiments])
 
 
-@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "yes_no_answer_no_res" and not message.text.startswith("/"))
-def handle_yes_no_answer_no_res(message):
-    logger.info(f"User {message.from_user.username} sent {message.text}")
-    if "no" in message.text.lower():
-        conversation_state[message.chat.id] = "no_answer_no_res"
+@bot.callback_query_handler(func=lambda call: conversation_state.get(call.message.chat.id, "") == "yes_no_answer_no_res")
+def handle_yes_no_answer_no_res(call):
+    logger.info(f"User {call.from_user.username} answered {call.data}")
+    if call.data == "no":
+        conversation_state[call.message.chat.id] = "no_answer_no_res"
         reply = "Come non detto allora.\nInviami pure la prossima frase"
-    elif "sì" in message.text.lower() or "si" in message.text.lower():
-        conversation_state[message.chat.id] = "yes_answer_no_res"
-        reply = "Indicami le emozioni che conteneva la frase separate da una virgola"
+        bot.reply_to(call.message, reply)
     else:
-        conversation_state[message.chat.id] = "no_answer_no_res"
-        reply = "Lo prendo come un no. Grazie lo stesso :)\nInviami pure la prossima frase"
+        conversation_state[call.message.chat.id] = "yes_answer_no_res"
+        reply = "Indicami le emozioni che conteneva la frase tra le seguenti o seleziona 'altro' per inserirne di personalizzate"
+        bot.reply_to(call.message, reply, reply_markup=gen_sentiments_markup())
 
     logger.info(f"Answer: {reply}")
-    bot.reply_to(message, reply)
+    bot.answer_callback_query(call.id)
 
 
-@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id,
-                                                                 "") == "yes_answer_no_res" and not message.text.startswith(
-    "/"))
-def handle_yes_answer_no_res(message):
-    logger.info(f"User {message.from_user.username} sent {message.text}")
-    add_to_supervision_file(message.date, message.from_user.id, message.from_user.username,
-                            f"{message.from_user.first_name} {message.from_user.last_name}",
-                            message.chat.id, conversation_last_message[message.chat.id], "", message.text)
-    conversation_state[message.chat.id] = ""
-
-    bot.reply_to(message, "Grazie per il tuo contributo!\nInviami pure la prossima frase")
-
-
-@bot.message_handler(
-    func=lambda message: conversation_state.get(message.chat.id, "") == "yes_no_answer" and not message.text.startswith(
-        "/"))
-def handle_yes_no_answer(message):
-    logger.info(f"User {message.from_user.username} sent {message.text}")
-    if "sì" in message.text.lower() or "si" in message.text.lower():
-        add_to_supervision_file(message.date, message.from_user.id, message.from_user.username,
-                                f"{message.from_user.first_name} {message.from_user.last_name}",
-                                message.chat.id, conversation_last_message[message.chat.id],
-                                conversation_last_sentiments.get(message.chat.id),
-                                to_comma_separated_sentiments(
-                                    filter_sentiments_by_threshold(conversation_last_sentiments.get(message.chat.id))))
-        conversation_state[message.chat.id] = ""
-        bot.reply_to(message, "Grandioso! Grazie per il tuo contributo\nInviami pure la prossima frase")
+@bot.callback_query_handler(func=lambda call: conversation_state.get(call.message.chat.id, "") == "yes_answer_no_res")
+def handle_yes_answer_no_res(call):
+    logger.info(f"User {call.from_user.username} sent {call.data}")
+    if call.data == "altro":
+        conversation_state[call.message.chat.id] = "other_sentiments"
+        bot.answer_callback_query(call.id)
+        bot.reply_to(call.message, "Indicami quali emozioni conteneva la frase separate da una virgola")
     else:
-        reply = ""
-        if "no" not in message.text.lower():
-            reply += "Lo prendo come un no.\n"
-        reply += "Allora per favore indicami le emozioni che conteneva la frase separate da una virgola"
-        bot.reply_to(message, reply)
-        conversation_state[message.chat.id] = "no_answer"
+        add_to_supervision_file(call.message.date, call.from_user.id, call.from_user.username,
+                                f"{call.from_user.first_name} {call.from_user.last_name}",
+                                call.message.chat.id, conversation_last_message[call.message.chat.id], "",
+                                call.data)
+        conversation_state[call.message.chat.id] = ""
+        bot.answer_callback_query(call.id)
+        bot.reply_to(call.message, "Grazie per il tuo contributo!\nInviami pure la prossima frase")
 
 
-@bot.message_handler(
-    func=lambda message: conversation_state.get(message.chat.id, "") == "no_answer" and not message.text.startswith(
+@bot.callback_query_handler(func=lambda call: conversation_state.get(call.message.chat.id, "") == "yes_no_answer")
+def handle_yes_no_answer(call):
+    logger.info(f"User {call.from_user.username} answered {call.data}")
+    if call.data == "sì":
+        add_to_supervision_file(call.message.date, call.from_user.id, call.from_user.username,
+                                f"{call.from_user.first_name} {call.from_user.last_name}",
+                                call.message.chat.id, conversation_last_message[call.message.chat.id],
+                                conversation_last_sentiments.get(call.message.chat.id),
+                                to_comma_separated_sentiments(
+                                    filter_sentiments_by_threshold(conversation_last_sentiments.get(call.message.chat.id))))
+        conversation_state[call.message.chat.id] = ""
+        bot.answer_callback_query(call.id)
+        bot.reply_to(call.message, "Grandioso! Grazie per il tuo contributo\nInviami pure la prossima frase")
+    else:
+        conversation_state[call.message.chat.id] = "no_answer"
+        bot.answer_callback_query(call.id)
+        bot.reply_to(call.message, "Allora per favore indicami l'emozione che conteneva la frase tra le seguenti o seleziona 'altro' per inserirne di personalizzate", reply_markup=gen_sentiments_markup())
+
+
+@bot.callback_query_handler(
+    func=lambda call: conversation_state.get(call.message.chat.id, "") == "no_answer")
+def handle_no_answer(call):
+    logger.info(f"User {call.from_user.username} sent {call.data}")
+    if call.data == "altro":
+        conversation_state[call.message.chat.id] = "other_sentiments"
+        bot.answer_callback_query(call.id)
+        bot.reply_to(call.message, "Indicami quali emozioni conteneva la frase separate da una virgola")
+    else:
+        add_to_supervision_file(call.message.date, call.from_user.id, call.from_user.username,
+                                f"{call.from_user.first_name} {call.from_user.last_name}",
+                                call.message.chat.id, conversation_last_message[call.message.chat.id],
+                                conversation_last_sentiments[call.message.chat.id], call.data)
+        conversation_state[call.message.chat.id] = ""
+        bot.answer_callback_query(call.id)
+        bot.reply_to(call.message, "Grazie per il tuo contributo!\nInviami pure la prossima frase")
+
+
+@bot.message_handler(func=lambda message: conversation_state.get(message.chat.id, "") == "other_sentiments" and not message.text.startswith(
         "/"))
-def handle_no_answer(message):
+def handle_other_sentiments(message):
     logger.info(f"User {message.from_user.username} sent {message.text}")
     add_to_supervision_file(message.date, message.from_user.id, message.from_user.username,
                             f"{message.from_user.first_name} {message.from_user.last_name}",
@@ -190,6 +209,22 @@ def handle_cancel(message):
     bot.reply_to(message, "Come non detto allora.\nInviami pure la prossima frase")
 
 
+def gen_answer_markup():
+    markup = InlineKeyboardMarkup()
+    markup.row_width = 2
+    markup.add(InlineKeyboardButton("Sì", callback_data="sì"), InlineKeyboardButton("No", callback_data="no"))
+
+    return markup
+
+
+def gen_sentiments_markup():
+    markup = InlineKeyboardMarkup()
+    for sentiment in sentiments + ['altro']:
+        markup.add(InlineKeyboardButton(sentiment, callback_data=sentiment))
+
+    return markup
+
+
 @bot.message_handler(func=lambda message: message.text[0] != "/")
 def analyze_sentiment(message):
     logger.info(f"User {message.from_user.username} sent text: {message.text}")
@@ -199,7 +234,7 @@ def analyze_sentiment(message):
     reply = create_formatted_message(message.chat.id, sentiments)
     logger.info(f"Answer: {reply}")
 
-    bot.reply_to(message, reply, parse_mode="markdown")
+    bot.reply_to(message, reply, parse_mode="markdown", reply_markup=gen_answer_markup())
 
 
 @bot.message_handler(commands=["analizza"])
