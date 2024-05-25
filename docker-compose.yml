@@ -7,3 +7,4 @@ services:
         - "gptemotionsbot:latest"
     volumes:
       - ./output:/output
+    restart: always
